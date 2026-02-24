@@ -4,6 +4,8 @@ A [Homebridge](https://homebridge.io) plugin for controlling **KEF LSX (Gen 1)**
 
 Uses [kef-wireless-js](https://www.npmjs.com/package/kef-wireless-js) to communicate with the speakers over the local network.
 
+**<u>This plugin was developed with AI assistance.</u>**
+
 ## Features
 
 - **Power on/off** -- Turn speakers on and off via a Television service tile
