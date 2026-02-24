@@ -1,0 +1,40 @@
+{
+  "name": "homebridge-keflsx",
+  "displayName": "KEF LSX",
+  "version": "1.0.0",
+  "description": "Homebridge plugin for KEF LSX Gen 1 wireless speakers",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": "^20.0.0 || ^22.0.0 || ^24.0.0",
+    "homebridge": "^1.8.0 || ^2.0.0"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "kef",
+    "lsx",
+    "speaker",
+    "homebridge"
+  ],
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "watch": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "kef-wireless-js": "^1.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "homebridge": "^1.8.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.0.0"
+  },
+  "homebridge": {
+    "displayName": "KEF LSX",
+    "plugin_map": {
+      "plugin_name": "homebridge-keflsx"
+    }
+  }
+}

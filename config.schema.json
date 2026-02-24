@@ -1,0 +1,39 @@
+{
+  "pluginAlias": "KefLsxPlatform",
+  "pluginType": "platform",
+  "singular": true,
+  "strictValidation": false,
+  "schema": {
+    "type": "object",
+    "required": ["name", "ip"],
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "KEF LSX"
+      },
+      "ip": {
+        "title": "Speaker IP Address",
+        "type": "string",
+        "format": "ipv4",
+        "description": "Local IP address of the KEF LSX speaker (e.g. 192.168.1.100)"
+      },
+      "maxVolume": {
+        "title": "Max Volume",
+        "type": "integer",
+        "default": 50,
+        "minimum": 1,
+        "maximum": 100,
+        "description": "Maximum volume level allowed (1-100)"
+      },
+      "checkStateInterval": {
+        "title": "Polling Interval (ms)",
+        "type": "integer",
+        "default": 5000,
+        "minimum": 1000,
+        "description": "How often to poll speaker state in milliseconds"
+      }
+    }
+  }
+}
