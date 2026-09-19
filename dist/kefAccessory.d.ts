@@ -7,8 +7,11 @@ export declare class KefAccessory {
     private volumeService;
     private muteService;
     private speaker;
+    private maxVolume;
     private state;
     constructor(platform: KefLsxPlatform, accessory: PlatformAccessory);
+    private command;
+    private setMuted;
     private handleActiveSet;
     private handleInputSet;
     private syncState;

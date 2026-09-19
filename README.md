@@ -13,7 +13,16 @@ Uses [kef-wireless-js](https://www.npmjs.com/package/kef-wireless-js) to communi
 - **Volume control** -- Adjust volume via a Lightbulb brightness slider (0-100)
 - **Mute toggle** -- Dedicated switch to mute/unmute the speakers
 
-All states are polled from the speaker and kept in sync with HomeKit.
+State is polled immediately on connection and then at the configured interval.
+Changes made with the KEF app or remote appear in HomeKit on the next poll.
+Volume requests above `maxVolume` are capped at that limit; the slider then
+shows the volume reported by the speaker. The limit applies to plugin commands,
+not volume changes made with the KEF app or remote.
+
+The Volume tile's on/off control sets mute explicitly, so repeating a command
+cannot accidentally toggle mute back. Power and input commands preserve mute;
+use Volume on or Mute off to unmute. Mute commands require a known speaker volume,
+and unavailable connections or failed writes are reported to HomeKit.
 
 ## How it appears in HomeKit
 
@@ -71,7 +80,7 @@ Add the following to the `platforms` array in your Homebridge `config.json`:
 git clone https://github.com/your-username/homebridge-keflsx.git
 cd homebridge-keflsx
 npm install
-npm run build
+npm test
 npm link
 ```
 
