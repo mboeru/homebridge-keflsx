@@ -3,6 +3,19 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const KEF = require('kef-wireless-js');
+// State events also contain cached volume when only the source changed.
+// Expose actual volume replies so startup never restores a standby volume.
+class KefSpeaker extends KEF {
+    constructor(options) {
+        super(options);
+    }
+    handleData(data) {
+        super.handleData(data);
+        if (data.length >= 5 && data[0] === 0x52 && data[1] === 0x25) {
+            this.emit('volume-report', this.toJSON());
+        }
+    }
+}
 const SOURCES = [
     { id: 0, name: 'AUX', kef: 'AUX' },
     { id: 1, name: 'OPT', kef: 'OPT' },
@@ -19,6 +32,8 @@ export class KefAccessory {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     speaker;
     maxVolume;
+    unmuteOnPowerOn;
+    wake;
     state = {
         volume: -1,
         muted: null,
@@ -31,6 +46,7 @@ export class KefAccessory {
         this.accessory = accessory;
         const { Service, Characteristic } = this.platform;
         const config = accessory.context.config;
+        this.unmuteOnPowerOn = config.unmuteOnPowerOn ?? true;
         this.maxVolume = config.maxVolume ?? 50;
         if (!Number.isInteger(this.maxVolume) || this.maxVolume < 1 || this.maxVolume > 100) {
             throw new Error('maxVolume must be an integer between 1 and 100');
@@ -85,11 +101,15 @@ export class KefAccessory {
         this.volumeService.getCharacteristic(Characteristic.On)
             .onGet(() => !this.state.muted && this.state.onoff === 1)
             .onSet(async (value) => {
+            // An already-off tile must not latch mute for the next startup.
+            if (!value && this.state.onoff === 0 && !this.wake)
+                return;
             await this.setMuted(!value);
         });
         this.volumeService.getCharacteristic(Characteristic.Brightness)
             .onGet(() => Math.max(0, this.state.volume))
             .onSet(async (value) => {
+            this.cancelWake();
             const volume = Math.min(this.maxVolume, Math.max(0, Math.round(Number(value))));
             if (!Number.isFinite(volume))
                 throw new Error('Invalid volume');
@@ -105,7 +125,7 @@ export class KefAccessory {
             await this.setMuted(Boolean(value));
         });
         // Initialize KEF speaker connection
-        this.speaker = new KEF({
+        this.speaker = new KefSpeaker({
             ip: config.ip,
             connectOnInstantiation: false,
             emitUnchangedState: true,
@@ -115,10 +135,14 @@ export class KefAccessory {
         this.speaker.on('state', (newState) => {
             this.syncState(newState);
         });
+        this.speaker.on('volume-report', (report) => {
+            void this.finishWake(report);
+        });
         this.speaker.on('socket:error', (err) => {
             this.platform.log.error('KEF socket error:', err.message);
         });
         this.speaker.on('socket:close', () => {
+            this.cancelWake();
             this.state = { ...this.state, volume: -1, muted: null, onoff: -1 };
             this.platform.log.warn('KEF speaker disconnected');
         });
@@ -127,6 +151,7 @@ export class KefAccessory {
             this.speaker.checkState();
         });
         this.platform.api.on('shutdown', () => {
+            this.cancelWake();
             clearInterval(this.speaker.checkStateLoop);
             clearTimeout(this.speaker.reconnectLoop);
             this.speaker.end();
@@ -155,7 +180,58 @@ export class KefAccessory {
             }
         });
     }
+    cancelWake() {
+        if (this.wake)
+            clearTimeout(this.wake.timer);
+        this.wake = undefined;
+    }
+    async turnOn(source) {
+        if (this.unmuteOnPowerOn && this.state.onoff !== 1 && !this.wake) {
+            const timer = setTimeout(() => {
+                this.cancelWake();
+                this.platform.log.warn('KEF startup unmute timed out; check speaker connectivity and mute state');
+            }, 20000);
+            timer.unref();
+            this.wake = { ready: false, writing: false, attempts: 0, timer };
+        }
+        try {
+            await this.command(cb => this.speaker.turnOnOrSwitchSource(source, cb));
+        }
+        catch (error) {
+            this.cancelWake();
+            throw error;
+        }
+    }
+    async finishWake(report) {
+        const wake = this.wake;
+        if (!wake?.ready || wake.writing || report.onoff !== 1 ||
+            !Number.isInteger(report.volume) || report.volume < 0 || report.volume > 100 ||
+            typeof report.muted !== 'boolean')
+            return;
+        if (!report.muted) {
+            this.cancelWake();
+            return;
+        }
+        if (wake.attempts >= 3)
+            return; // The deadline reports failure if mute persists.
+        wake.writing = true;
+        wake.attempts++;
+        try {
+            await this.command(cb => this.speaker.setVolume(Math.min(report.volume, this.maxVolume), cb));
+            // Keep waiting for a volume reply confirming unmute, not just a socket ACK.
+        }
+        catch (error) {
+            if (this.wake === wake) {
+                this.cancelWake();
+                this.platform.log.warn('KEF startup unmute failed:', String(error));
+            }
+        }
+        finally {
+            wake.writing = false;
+        }
+    }
     async setMuted(muted) {
+        this.cancelWake();
         if (this.state.volume < 0 || this.state.muted === null) {
             throw new Error('KEF volume/mute state is not available yet');
         }
@@ -166,9 +242,10 @@ export class KefAccessory {
     async handleActiveSet(value) {
         if (value === this.platform.Characteristic.Active.ACTIVE) {
             const source = this.validSource(this.state.source);
-            await this.command(cb => this.speaker.turnOnOrSwitchSource(source, cb));
+            await this.turnOn(source);
         }
         else {
+            this.cancelWake();
             await this.command(cb => this.speaker.turnOff(cb));
         }
     }
@@ -176,7 +253,7 @@ export class KefAccessory {
         const src = SOURCES.find(s => s.id === value);
         if (!src)
             return;
-        await this.command(cb => this.speaker.turnOnOrSwitchSource(src.kef, cb));
+        await this.turnOn(src.kef);
     }
     syncState(newState) {
         const { Characteristic } = this.platform;
@@ -191,6 +268,11 @@ export class KefAccessory {
                 ? { volume: newState.volume } : {}),
             ...(typeof newState.muted === 'boolean' ? { muted: newState.muted } : {}),
         };
+        if (this.wake && !this.wake.ready && newState.onoff === 1 &&
+            typeof newState.source === 'string' && SOURCES.some(s => s.kef === newState.source)) {
+            this.wake.ready = true;
+            this.speaker.getVolume();
+        }
         // Publish each poll, even when unchanged, to reconcile HomeKit's optimistic writes.
         if (this.state.onoff !== -1) {
             this.tvService.updateCharacteristic(Characteristic.Active, this.state.onoff === 1

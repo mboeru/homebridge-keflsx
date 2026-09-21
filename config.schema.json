@@ -5,7 +5,10 @@
   "strictValidation": false,
   "schema": {
     "type": "object",
-    "required": ["name", "ip"],
+    "required": [
+      "name",
+      "ip"
+    ],
     "additionalProperties": false,
     "properties": {
       "name": {
@@ -33,6 +36,12 @@
         "default": 5000,
         "minimum": 1000,
         "description": "How often to poll speaker state in milliseconds"
+      },
+      "unmuteOnPowerOn": {
+        "title": "Unmute on Power On",
+        "type": "boolean",
+        "default": true,
+        "description": "Unmute after a HomeKit power-on or input selection wakes the speaker. Explicit mute commands take priority."
       }
     }
   }

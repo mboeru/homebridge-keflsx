@@ -8,9 +8,14 @@ export declare class KefAccessory {
     private muteService;
     private speaker;
     private maxVolume;
+    private unmuteOnPowerOn;
+    private wake?;
     private state;
     constructor(platform: KefLsxPlatform, accessory: PlatformAccessory);
     private command;
+    private cancelWake;
+    private turnOn;
+    private finishWake;
     private setMuted;
     private handleActiveSet;
     private handleInputSet;
