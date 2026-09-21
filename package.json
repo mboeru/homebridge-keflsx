@@ -1,7 +1,7 @@
 {
   "name": "homebridge-keflsx",
   "displayName": "KEF LSX",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Homebridge plugin for KEF LSX Gen 1 wireless speakers",
   "license": "Apache-2.0",
   "type": "module",
@@ -20,7 +20,9 @@
   "scripts": {
     "build": "rimraf dist && tsc",
     "watch": "tsc --watch",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "npm run build && node --test test/*.test.js",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "kef-wireless-js": "^1.0.4"
